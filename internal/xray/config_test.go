@@ -316,7 +316,7 @@ func TestRawOutbounds(t *testing.T) {
 
 func TestBuildPing(t *testing.T) {
 	servers := []*model.Server{server(t, "vless-reality"), server(t, "trojan"), {Protocol: "bogus"}}
-	b, errs := BuildPing(servers, []int{20001, 20002, 20003})
+	b, errs := BuildPing(servers, []int{20001, 20002, 20003}, "")
 	if errs[0] != nil || errs[1] != nil || errs[2] == nil {
 		t.Fatalf("errs: %v", errs)
 	}
@@ -383,7 +383,7 @@ func TestXrayAccepts(t *testing.T) {
 		all = append(all, server(t, key))
 		ports = append(ports, 30000+len(ports))
 	}
-	b, _ := BuildPing(all, ports)
+	b, _ := BuildPing(all, ports, "")
 	run("ping", b)
 }
 

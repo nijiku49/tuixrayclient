@@ -490,14 +490,16 @@ func splitList(s string) []string {
 
 // BuildPing — конфиг для URL-теста: у каждого сервера свой SOCKS-вход на
 // 127.0.0.1:ports[i], трафик с которого идёт только в его outbound.
-func BuildPing(servers []*model.Server, ports []int) ([]byte, []error) {
+// bindIface — физический интерфейс, если сейчас активен TUN (иначе тест
+// пошёл бы через текущий туннель).
+func BuildPing(servers []*model.Server, ports []int, bindIface string) ([]byte, []error) {
 	errs := make([]error, len(servers))
 	var (
 		inbounds, outbounds, rules []any
 	)
 	for i, s := range servers {
 		tag := "t" + strconv.Itoa(i)
-		outs, err := Outbounds(s, tag, tag+"-", "")
+		outs, err := Outbounds(s, tag, tag+"-", bindIface)
 		if err != nil {
 			errs[i] = err
 			continue
