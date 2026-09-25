@@ -107,6 +107,38 @@ func parseProcRoute(text, skipIface string) (Route, error) {
 // TunAddr — адрес, назначаемый интерфейсу tun.
 const TunAddr = "172.19.0.1/30"
 
+// ResolvConfServers — адреса DNS-серверов из resolv.conf.
+func ResolvConfServers(text string) []net.IP {
+	var out []net.IP
+	for _, line := range strings.Split(text, "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && f[0] == "nameserver" {
+			host, _, _ := strings.Cut(f[1], "%") // fe80::1%eth0
+			if ip := net.ParseIP(host); ip != nil {
+				out = append(out, ip)
+			}
+		}
+	}
+	return out
+}
+
+// dnsLeakRoutes — маршруты к системным DNS через tun. Без них запросы к
+// DNS роутера (192.168.x.x) ушли бы по более узкому маршруту локальной
+// сети мимо туннеля — утечка DNS. В туннеле их перехватывает xray.
+func dnsLeakRoutes(servers []net.IP) (v4, v6 []string) {
+	for _, ip := range servers {
+		if ip.IsLoopback() || ip.IsUnspecified() {
+			continue
+		}
+		if ip.To4() != nil {
+			v4 = append(v4, ip.String()+"/32")
+		} else if !ip.IsLinkLocalUnicast() {
+			v6 = append(v6, ip.String()+"/128")
+		}
+	}
+	return v4, v6
+}
+
 // SetupTunRoutes ждёт появления интерфейса xray и направляет в него весь
 // трафик. Маршрут по умолчанию не трогаем: 0/1 и 128/1 перекрывают его,
 // а исходящие xray привязаны к физическому интерфейсу.
@@ -146,6 +178,16 @@ func SetupTunRoutes(tun string, wait time.Duration) error {
 		if err := run(true, "route", "add", dst, "dev", tun); err != nil {
 			return err
 		}
+	}
+	resolv, _ := os.ReadFile("/etc/resolv.conf")
+	dns4, dns6 := dnsLeakRoutes(ResolvConfServers(string(resolv)))
+	for _, dst := range dns4 {
+		if err := run(true, "route", "add", dst, "dev", tun); err != nil {
+			return fmt.Errorf("не удалось завернуть DNS %s в туннель: %w", dst, err)
+		}
+	}
+	for _, dst := range dns6 {
+		_ = run(true, "-6", "route", "add", dst, "dev", tun)
 	}
 	// IPv6: если он есть в системе, тоже заворачиваем — иначе утечка.
 	if hasIPv6Default() {

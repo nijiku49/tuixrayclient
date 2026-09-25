@@ -1,0 +1,10 @@
+# /etc/conf.d/harley
+
+# Путь к бинарнику harley.
+#HARLEY_BIN="/usr/local/bin/harley"
+
+# Обновлять просроченные подписки перед подключением (yes/no).
+#HARLEY_UPDATE="yes"
+
+# Каталог данных (по умолчанию /etc/harley).
+#HARLEY_HOME="/etc/harley"

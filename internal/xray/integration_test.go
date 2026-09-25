@@ -167,6 +167,20 @@ func TestParseProcRoute(t *testing.T) {
 	}
 }
 
+func TestDNSLeakRoutes(t *testing.T) {
+	servers := ResolvConfServers("# comment\nnameserver 192.168.1.1\nnameserver 127.0.0.53\nnameserver 2001:4860:4860::8888\nnameserver fe80::1%eth0\nsearch lan\n")
+	if len(servers) != 4 {
+		t.Fatalf("%v", servers)
+	}
+	v4, v6 := dnsLeakRoutes(servers)
+	if len(v4) != 1 || v4[0] != "192.168.1.1/32" {
+		t.Fatalf("v4: %v", v4)
+	}
+	if len(v6) != 1 || v6[0] != "2001:4860:4860::8888/128" {
+		t.Fatalf("v6: %v", v6)
+	}
+}
+
 func TestExplainLog(t *testing.T) {
 	cases := map[string]string{
 		"listen tcp 127.0.0.1:10808: bind: address already in use":           "порт",

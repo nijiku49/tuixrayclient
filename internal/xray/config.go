@@ -273,7 +273,7 @@ func buildOutbound(s *model.Server) (obj, error) {
 		}
 		ob["protocol"] = "shadowsocks"
 		ob["settings"] = obj{"servers": []any{obj{"address": s.Address, "port": s.Port,
-			"method": method, "password": s.Password, "uot": true}}}
+			"method": method, "password": s.Password}}}
 	case model.Hysteria2:
 		ob["protocol"] = "hysteria"
 		ob["settings"] = obj{"version": 2, "address": s.Address, "port": s.Port}

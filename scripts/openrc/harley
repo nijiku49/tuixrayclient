@@ -1,0 +1,57 @@
+#!/sbin/openrc-run
+# harley — автоподключение к последнему серверу при загрузке.
+# Настройки: /etc/conf.d/harley. Данные: /etc/harley (настраивай `sudo harley`).
+
+name="harley"
+description="harley VPN (xray-core): подключение к последнему серверу"
+
+: "${HARLEY_BIN:=/usr/local/bin/harley}"
+: "${HARLEY_UPDATE:=yes}"
+
+command="$HARLEY_BIN"
+pidfile="/run/harley/xray.pid"
+
+depend() {
+	need net
+	use dns logger
+	after firewall
+}
+
+start_pre() {
+	if [ ! -x "$HARLEY_BIN" ]; then
+		eerror "не найден $HARLEY_BIN (задай HARLEY_BIN в /etc/conf.d/harley)"
+		return 1
+	fi
+	checkpath -d -m 0700 -o root:root /run/harley
+	if [ ! -c /dev/net/tun ]; then
+		modprobe tun 2>/dev/null || ewarn "модуль tun не загружен — режим TUN работать не будет"
+	fi
+	if [ -n "$HARLEY_HOME" ]; then
+		export HARLEY_HOME
+	fi
+}
+
+start() {
+	ebegin "Подключение harley"
+	if [ "$HARLEY_UPDATE" = "yes" ]; then
+		# Обновляем только просроченные подписки; без сети — работаем на копии.
+		"$HARLEY_BIN" update --due >/dev/null 2>&1 || true
+	fi
+	"$HARLEY_BIN" connect
+	eend $?
+}
+
+stop() {
+	ebegin "Отключение harley"
+	"$HARLEY_BIN" disconnect >/dev/null
+	eend $?
+}
+
+status() {
+	if "$HARLEY_BIN" status -q; then
+		einfo "status: подключено"
+		return 0
+	fi
+	einfo "status: не подключено"
+	return 3
+}
