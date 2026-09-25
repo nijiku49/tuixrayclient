@@ -232,8 +232,8 @@ func (m *Model) setMsg(k msgKind, s string) {
 // ─── Сообщения фоновых операций ──────────────────────────────────────────
 
 type (
-	tickMsg    time.Time
-	importMsg  struct {
+	tickMsg   time.Time
+	importMsg struct {
 		rep app.ImportReport
 		err error
 	}
