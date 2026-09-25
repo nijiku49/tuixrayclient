@@ -169,10 +169,10 @@ func TestParseProcRoute(t *testing.T) {
 
 func TestExplainLog(t *testing.T) {
 	cases := map[string]string{
-		"listen tcp 127.0.0.1:10808: bind: address already in use":          "порт",
-		"failed to open /dev/net/tun: no such file or directory":            "modprobe tun",
-		"tun: operation not permitted":                                      "root",
-		"failed to load geoip.dat: open geoip.dat: no such file":            "geoip.dat",
+		"listen tcp 127.0.0.1:10808: bind: address already in use":           "порт",
+		"failed to open /dev/net/tun: no such file or directory":             "modprobe tun",
+		"tun: operation not permitted":                                       "root",
+		"failed to load geoip.dat: open geoip.dat: no such file":             "geoip.dat",
 		"infra/conf: failed to build outbound > unknown config id: hysteria": "Hysteria2",
 	}
 	for log, want := range cases {
