@@ -80,6 +80,7 @@ type Server struct {
 	// Результат последнего пинга: >0 мс, 0 — не измерялся, <0 — ошибка.
 	Ping     int       `json:"ping,omitempty"`
 	PingedAt time.Time `json:"pinged_at,omitempty"`
+	PingErr  string    `json:"ping_err,omitempty"` // причина последней неудачи
 }
 
 // ProtoLabel — короткое имя протокола для списка.

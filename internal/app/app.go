@@ -390,15 +390,32 @@ func (a *App) Ping(ctx context.Context, ids []string) (PingReport, error) {
 			if s := st.ServerByID(r.ID); s != nil {
 				s.PingedAt = now
 				if r.Err != nil {
-					s.Ping = -1
+					s.Ping, s.PingErr = -1, r.Err.Error()
 				} else {
-					s.Ping = r.Ms
+					s.Ping, s.PingErr = r.Ms, ""
 				}
 			}
 		}
 		return nil
 	})
 	return rep, err
+}
+
+// FirstPingError — самая частая причина неудачи пинга (для сообщения).
+func FirstPingError(rep PingReport) string {
+	count := map[string]int{}
+	best := ""
+	for _, r := range rep.Results {
+		if r.Err == nil {
+			continue
+		}
+		e := r.Err.Error()
+		count[e]++
+		if best == "" || count[e] > count[best] {
+			best = e
+		}
+	}
+	return best
 }
 
 // Fastest — сервер с наименьшим пингом среди ids (или всех).
@@ -675,7 +692,8 @@ func (a *App) GetStatus() Status {
 
 // AutoConnect: пинг → самый быстрый → подключение (сценарий «вставил — работает»).
 func (a *App) AutoConnect(ctx context.Context, ids []string) (*Session, *model.Server, error) {
-	if _, err := a.Ping(ctx, ids); err != nil {
+	rep, err := a.Ping(ctx, ids)
+	if err != nil {
 		return nil, nil, err
 	}
 	state, err := a.Store.LoadState()
@@ -684,7 +702,11 @@ func (a *App) AutoConnect(ctx context.Context, ids []string) (*Session, *model.S
 	}
 	best := Fastest(state, ids)
 	if best == nil {
-		return nil, nil, errors.New("ни один сервер не ответил на пинг — проверь сеть или обнови подписку")
+		msg := "ни один сервер не ответил на пинг"
+		if r := FirstPingError(rep); r != "" {
+			msg += ": " + r
+		}
+		return nil, nil, errors.New(msg)
 	}
 	sess, err := a.Connect(ctx, best.ID)
 	return sess, best, err

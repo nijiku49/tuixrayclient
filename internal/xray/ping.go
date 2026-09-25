@@ -38,13 +38,32 @@ type PingOptions struct {
 
 // URLTest измеряет реальную задержку: поднимает отдельный xray, у которого
 // на каждый сервер свой SOCKS-вход, и делает через каждый HTTP-запрос к URL.
+//
+// Если xray не стартует (один «битый» сервер в подписке валит весь конфиг),
+// список делится пополам и проверяется по частям, пока не останутся
+// отдельные серверы: плохой получит свою ошибку, остальные — пинг.
 func URLTest(ctx context.Context, servers []*model.Server, o PingOptions) []PingResult {
+	res, startFailed := urlTestOnce(ctx, servers, o)
+	if !startFailed || len(servers) < 2 || ctx.Err() != nil {
+		return res
+	}
+	mid := len(servers) / 2
+	var left, right []PingResult
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); left = URLTest(ctx, servers[:mid], o) }()
+	go func() { defer wg.Done(); right = URLTest(ctx, servers[mid:], o) }()
+	wg.Wait()
+	return append(left, right...)
+}
+
+func urlTestOnce(ctx context.Context, servers []*model.Server, o PingOptions) ([]PingResult, bool) {
 	res := make([]PingResult, len(servers))
 	for i, s := range servers {
 		res[i].ID = s.ID
 	}
 	if len(servers) == 0 {
-		return res
+		return res, false
 	}
 	if o.Timeout == 0 {
 		o.Timeout = 5 * time.Second
@@ -62,7 +81,7 @@ func URLTest(ctx context.Context, servers []*model.Server, o PingOptions) []Ping
 	}
 	ports, err := FreePorts(len(servers))
 	if err != nil {
-		return fail(err)
+		return fail(err), false
 	}
 	cfg, errs := BuildPing(servers, ports, o.BindIface)
 	for i, e := range errs {
@@ -71,16 +90,16 @@ func URLTest(ctx context.Context, servers []*model.Server, o PingOptions) []Ping
 		}
 	}
 	if cfg == nil {
-		return res
+		return res, false
 	}
 	f, err := os.CreateTemp(o.WorkDir, "ping-*.json")
 	if err != nil {
-		return fail(err)
+		return fail(err), false
 	}
 	defer os.Remove(f.Name())
 	if _, err := f.Write(cfg); err != nil {
 		f.Close()
-		return fail(err)
+		return fail(err), false
 	}
 	f.Close()
 
@@ -95,7 +114,7 @@ func URLTest(ctx context.Context, servers []*model.Server, o PingOptions) []Ping
 	var out strings.Builder
 	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := cmd.Start(); err != nil {
-		return fail(fmt.Errorf("не удалось запустить xray: %w", err))
+		return fail(fmt.Errorf("не удалось запустить xray: %w", err)), false
 	}
 	exited := make(chan struct{})
 	go func() { _ = cmd.Wait(); close(exited) }()
@@ -114,7 +133,11 @@ func URLTest(ctx context.Context, servers []*model.Server, o PingOptions) []Ping
 	}
 	if err := waitListen(firstPort, 5*time.Second, exited); err != nil {
 		lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-		return fail(fmt.Errorf("xray для пинга не запустился: %s", ExplainLog(lines)))
+		msg := ExplainLog(lines)
+		if len(servers) == 1 {
+			return fail(fmt.Errorf("xray не принял конфиг сервера: %s", msg)), true
+		}
+		return fail(fmt.Errorf("xray для пинга не запустился: %s", msg)), true
 	}
 
 	sem := make(chan struct{}, o.Parallel)
@@ -133,7 +156,7 @@ func URLTest(ctx context.Context, servers []*model.Server, o PingOptions) []Ping
 		}(i)
 	}
 	wg.Wait()
-	return res
+	return res, false
 }
 
 func waitListen(port int, d time.Duration, exited <-chan struct{}) error {

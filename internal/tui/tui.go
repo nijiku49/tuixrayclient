@@ -520,6 +520,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.rep.TCPOnly {
 			txt += " (xray не найден — только TCP-пинг)"
 		}
+		if ok == 0 && bad > 0 {
+			m.setMsg(kErr, txt+" — "+app.FirstPingError(msg.rep))
+			return m, nil
+		}
+		if bad > 0 {
+			txt += " · причина ✕ — видна, если встать на сервер"
+		}
 		m.setMsg(kInfo, txt)
 		return m, nil
 

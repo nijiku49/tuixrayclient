@@ -75,14 +75,23 @@ func TestIntegrationPingAndConnect(t *testing.T) {
 	deadPorts, _ := FreePorts(1)
 	dead, _ := parse.ParseLink(fmt.Sprintf("vless://5783a3e7-e373-51cd-8642-c83782b807c5@127.0.0.1:%d?security=none#dead", deadPorts[0]))
 	wrong, _ := parse.ParseLink(fmt.Sprintf("trojan://nope@127.0.0.1:%d?security=none#wrong-proto", srvPort))
+	// Сервер, конфиг которого xray не примет (битый ключ Reality в xray JSON
+	// подписке): раньше он ронял пинг всех серверов.
+	broken := &model.Server{ID: "broken", Name: "broken", Protocol: model.VLESS, Address: "127.0.0.1", Port: 1,
+		Raw: []byte(`{"protocol":"vless","settings":{"vnext":[{"address":"127.0.0.1","port":1,"users":[{"id":"5783a3e7-e373-51cd-8642-c83782b807c5","encryption":"none"}]}]},
+		  "streamSettings":{"network":"tcp","security":"reality","realitySettings":{"serverName":"a.com","publicKey":"BAD_KEY","fingerprint":"chrome"}}}`)}
 
 	// --- URL-тест ---
 	// Адрес из TEST-NET: сервер всё равно перенаправит на httptest.
-	res := URLTest(context.Background(), []*model.Server{good, dead, wrong}, PingOptions{
+	res := URLTest(context.Background(), []*model.Server{broken, good, dead, wrong}, PingOptions{
 		Bin: bin, URL: "http://203.0.113.1/generate_204", Timeout: 3 * time.Second, WorkDir: t.TempDir(),
 	})
+	if res[0].Err == nil || !strings.Contains(res[0].Err.Error(), "не принял конфиг") {
+		t.Fatalf("битый сервер должен получить свою ошибку: %+v", res[0])
+	}
+	res = res[1:]
 	if res[0].Err != nil || res[0].Ms <= 0 {
-		t.Fatalf("живой сервер: %+v", res[0])
+		t.Fatalf("живой сервер (рядом с битым): %+v", res[0])
 	}
 	if res[1].Err == nil {
 		t.Fatalf("мёртвый сервер должен давать ошибку: %+v", res[1])

@@ -278,9 +278,12 @@ func (m *Model) messageLine() string {
 	if m.search != "" {
 		return " " + sDim.Render("фильтр: ") + sText.Render(m.search) + sDim.Render("  (Esc — сбросить)")
 	}
-	// Подробности о выбранной подписке.
+	// Подробности о выбранной строке.
 	if m.cursor < len(m.rows) {
 		r := m.rows[m.cursor]
+		if !r.header && r.server.Ping < 0 && r.server.PingErr != "" {
+			return " " + sBad.Render("✕ "+r.server.PingErr)
+		}
 		if r.header && r.sub != nil {
 			var p []string
 			if r.sub.LastErr != "" {
