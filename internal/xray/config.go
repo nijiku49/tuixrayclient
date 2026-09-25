@@ -42,6 +42,7 @@ type Options struct {
 	Routing     string
 	Custom      store.CustomRules
 	DNS         []string
+	IPv6        bool
 	LogLevel    string
 }
 
@@ -57,6 +58,7 @@ func OptionsFromSettings(st store.Settings) Options {
 		Routing:   st.Routing,
 		Custom:    st.Custom,
 		DNS:       st.DNS,
+		IPv6:      st.IPv6,
 		LogLevel:  st.LogLevel,
 	}
 }
@@ -100,9 +102,13 @@ func Build(s *model.Server, o Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	strategy := "UseIPv4"
+	if o.IPv6 {
+		strategy = "UseIP"
+	}
 	if o.Mode == store.ModeTUN {
 		// Адрес сервера разрешаем через hosts, а не через системный DNS.
-		setSockopt(outs[0], "domainStrategy", "UseIP")
+		setSockopt(outs[0], "domainStrategy", strategy)
 	}
 
 	sniff := obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true}
@@ -135,7 +141,7 @@ func Build(s *model.Server, o Options) ([]byte, error) {
 		return nil, fmt.Errorf("не задан ни один вход: включи TUN или укажи порт SOCKS/HTTP")
 	}
 
-	direct := obj{"tag": TagDirect, "protocol": "freedom", "settings": obj{"domainStrategy": "UseIP"}}
+	direct := obj{"tag": TagDirect, "protocol": "freedom", "settings": obj{"domainStrategy": strategy}}
 	block := obj{"tag": TagBlock, "protocol": "blackhole"}
 	outbounds := []any{outs[0]}
 	for _, d := range outs[1:] {
@@ -149,13 +155,13 @@ func Build(s *model.Server, o Options) ([]byte, error) {
 		}
 	}
 
-	rules, strategy := routingRules(o)
+	rules, routeStrategy := routingRules(o)
 
 	dnsServers := o.DNS
 	if len(dnsServers) == 0 {
 		dnsServers = []string{"1.1.1.1", "8.8.8.8"}
 	}
-	dns := obj{"servers": dnsServers, "tag": TagDNSIn, "queryStrategy": "UseIP"}
+	dns := obj{"servers": dnsServers, "tag": TagDNSIn, "queryStrategy": strategy}
 	if len(o.ServerHosts) > 0 {
 		dns["hosts"] = o.ServerHosts
 	}
@@ -169,7 +175,7 @@ func Build(s *model.Server, o Options) ([]byte, error) {
 		"dns":       dns,
 		"inbounds":  inbounds,
 		"outbounds": outbounds,
-		"routing":   obj{"domainStrategy": strategy, "rules": rules},
+		"routing":   obj{"domainStrategy": routeStrategy, "rules": rules},
 	}
 	if o.MetricsPort > 0 {
 		cfg["stats"] = obj{}

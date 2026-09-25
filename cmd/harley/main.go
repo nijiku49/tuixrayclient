@@ -38,6 +38,7 @@ const usage = `harley — VPN-клиент на xray-core (аналог Happ в 
   harley mode proxy|tun         режим подключения
   harley routing all|ru|custom  маршрутизация: всё через VPN / RU напрямую / свои правила
   harley logs [-n 50]           последние строки лога xray
+  harley doctor                 диагностика: почему не работает интернет (пришли вывод разработчику)
   harley install-xray           скачать/обновить xray-core (официальный релиз, проверка SHA-256)
         --version v26.3.27      конкретная версия (по умолчанию последняя)
         --from Xray-linux-64.zip  установить из скачанного архива (рядом нужен .dgst)
@@ -78,6 +79,8 @@ func main() {
 		err = cmdRouting(args)
 	case "logs", "log":
 		err = cmdLogs(args)
+	case "doctor", "diag":
+		err = cmdDoctor(ctx)
 	case "install-xray":
 		err = cmdInstallXray(ctx, args)
 	case "tui":
@@ -452,6 +455,27 @@ func cmdInstallXray(ctx context.Context, args []string) error {
 	}
 	if os.Geteuid() != 0 {
 		fmt.Println("  (установлено для текущего пользователя; для режима TUN и OpenRC запусти `sudo harley install-xray`)")
+	}
+	return nil
+}
+
+func cmdDoctor(ctx context.Context) error {
+	a := openApp()
+	fmt.Println("harley", version, "— диагностика")
+	failed := 0
+	for _, c := range a.Doctor(ctx) {
+		mark := "✓"
+		switch {
+		case !c.OK:
+			mark = "✕"
+			failed++
+		case c.Warn:
+			mark = "!"
+		}
+		fmt.Printf("%s %-26s %s\n", mark, c.Name, c.Info)
+	}
+	if failed > 0 {
+		return exitErr{1}
 	}
 	return nil
 }

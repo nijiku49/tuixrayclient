@@ -62,6 +62,9 @@ type Settings struct {
 	Routing string      `json:"routing"` // all | ru-direct | custom
 	Custom  CustomRules `json:"custom_rules"`
 	DNS     []string    `json:"dns"` // DNS через VPN
+	// IPv6 — отдавать приложениям IPv6-адреса. По умолчанию выключено: если
+	// у VPN-сервера нет IPv6, приложения, выбравшие IPv6, зависают.
+	IPv6 bool `json:"ipv6"`
 
 	AutoConnect     bool   `json:"autoconnect"`       // после импорта: пинг → лучший → подключиться
 	AutoUpdateHours int    `json:"auto_update_hours"` // если подписка не задаёт интервал

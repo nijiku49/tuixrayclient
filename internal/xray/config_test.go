@@ -125,7 +125,7 @@ func TestBuildTUN(t *testing.T) {
 		t.Fatalf("tun inbound: %+v", c.Inbounds[0])
 	}
 	so := c.Outbounds[0]["streamSettings"].(map[string]any)["sockopt"].(map[string]any)
-	if so["interface"] != "eth0" || so["domainStrategy"] != "UseIP" {
+	if so["interface"] != "eth0" || so["domainStrategy"] != "UseIPv4" {
 		t.Fatalf("sockopt proxy: %v", so)
 	}
 	direct := findOutbound(c, TagDirect)

@@ -176,6 +176,48 @@ func TestParseProcRoute(t *testing.T) {
 	}
 }
 
+func TestLooseRPFilter(t *testing.T) {
+	base := t.TempDir()
+	set := func(iface, v string) {
+		os.MkdirAll(filepath.Join(base, iface), 0o755)
+		os.WriteFile(filepath.Join(base, iface, "rp_filter"), []byte(v+"\n"), 0o644)
+	}
+	get := func(iface string) string {
+		b, _ := os.ReadFile(filepath.Join(base, iface, "rp_filter"))
+		return strings.TrimSpace(string(b))
+	}
+	// Alpine: all=1 — переключаем в loose.
+	set("all", "1")
+	set("eth0", "1")
+	prev, changed, err := looseRPFilter(base, "eth0")
+	if err != nil || !changed || prev != "1" || get("all") != "2" {
+		t.Fatalf("%q %v %v all=%s", prev, changed, err, get("all"))
+	}
+	// all=0, но интерфейс strict — тоже мешает.
+	set("all", "0")
+	if prev, changed, _ = looseRPFilter(base, "eth0"); !changed || prev != "0" || get("all") != "2" {
+		t.Fatal("iface=1")
+	}
+	// Уже 0 или 2 — не трогаем.
+	set("all", "0")
+	set("eth0", "0")
+	if _, changed, _ = looseRPFilter(base, "eth0"); changed {
+		t.Fatal("rp_filter=0 трогать не нужно")
+	}
+}
+
+func TestParseRoutesVia(t *testing.T) {
+	text := "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\n" +
+		"harley0\t00000000\t00000000\t0001\t0\t0\t0\t00000080\n" +
+		"harley0\t00000080\t00000000\t0001\t0\t0\t0\t00000080\n" +
+		"harley0\t0101A8C0\t00000000\t0005\t0\t0\t0\tFFFFFFFF\n" +
+		"eth0\t00000000\t0101A8C0\t0003\t0\t0\t0\t00000000\n"
+	got := strings.Join(parseRoutesVia(text, "harley0"), " ")
+	if got != "0.0.0.0/1 128.0.0.0/1 192.168.1.1/32" {
+		t.Fatal(got)
+	}
+}
+
 func TestDNSLeakRoutes(t *testing.T) {
 	servers := ResolvConfServers("# comment\nnameserver 192.168.1.1\nnameserver 127.0.0.53\nnameserver 2001:4860:4860::8888\nnameserver fe80::1%eth0\nsearch lan\n")
 	if len(servers) != 4 {

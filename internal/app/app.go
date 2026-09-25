@@ -515,6 +515,8 @@ type Session struct {
 	MetricsPort int       `json:"metrics_port"`
 	TunName     string    `json:"tun_name,omitempty"`
 	BindIface   string    `json:"bind_iface,omitempty"`
+	// RPFilterPrev — значение net.ipv4.conf.all.rp_filter до подключения.
+	RPFilterPrev string `json:"rp_filter_prev,omitempty"`
 }
 
 func (a *App) proc(bin, asset string) *xray.Proc {
@@ -642,6 +644,15 @@ func (a *App) Connect(ctx context.Context, serverID string) (*Session, error) {
 			xray.TeardownTunRoutes(settings.TunName)
 			return nil, err
 		}
+		prev, changed, err := xray.LooseRPFilter(sess.BindIface)
+		if err != nil {
+			_ = p.Stop()
+			xray.TeardownTunRoutes(settings.TunName)
+			return nil, err
+		}
+		if changed {
+			sess.RPFilterPrev = prev
+		}
 	}
 	sess.Pid = pid
 	sess.Started = a.Now()
@@ -664,6 +675,7 @@ func (a *App) Disconnect() error {
 	}
 	if sess != nil && sess.Mode == store.ModeTUN && sess.TunName != "" {
 		xray.TeardownTunRoutes(sess.TunName)
+		xray.RestoreRPFilter(sess.RPFilterPrev)
 	}
 	_ = os.Remove(a.Store.SessionPath())
 	return nil

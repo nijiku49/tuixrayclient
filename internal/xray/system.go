@@ -190,7 +190,7 @@ func SetupTunRoutes(tun string, wait time.Duration) error {
 		_ = run(true, "-6", "route", "add", dst, "dev", tun)
 	}
 	// IPv6: если он есть в системе, тоже заворачиваем — иначе утечка.
-	if hasIPv6Default() {
+	if HasIPv6Default() {
 		for _, dst := range []string{"::/1", "8000::/1"} {
 			if err := run(true, "-6", "route", "add", dst, "dev", tun); err != nil {
 				return fmt.Errorf("не удалось завернуть IPv6 в туннель (%v); отключи IPv6 или установи iproute2", err)
@@ -215,7 +215,8 @@ func TeardownTunRoutes(tun string) {
 	}
 }
 
-func hasIPv6Default() bool {
+// HasIPv6Default — в системе есть маршрут IPv6 по умолчанию.
+func HasIPv6Default() bool {
 	b, err := os.ReadFile("/proc/net/ipv6_route")
 	if err != nil {
 		return false
@@ -272,4 +273,72 @@ func PortFree(addr string, port int) bool {
 	}
 	l.Close()
 	return true
+}
+
+// RoutesVia — IPv4-маршруты через интерфейс (из /proc/net/route), «a.b.c.d/n».
+func RoutesVia(iface string) []string {
+	b, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return nil
+	}
+	return parseRoutesVia(string(b), iface)
+}
+
+func parseRoutesVia(text, iface string) []string {
+	var out []string
+	for i, line := range strings.Split(text, "\n") {
+		f := strings.Fields(line)
+		if i == 0 || len(f) < 8 || f[0] != iface {
+			continue
+		}
+		dst, err1 := hex.DecodeString(f[1])
+		mask, err2 := hex.DecodeString(f[7])
+		if err1 != nil || err2 != nil || len(dst) != 4 || len(mask) != 4 {
+			continue
+		}
+		ip := net.IPv4(dst[3], dst[2], dst[1], dst[0])
+		ones, _ := net.IPv4Mask(mask[3], mask[2], mask[1], mask[0]).Size()
+		out = append(out, fmt.Sprintf("%s/%d", ip, ones))
+	}
+	return out
+}
+
+const rpFilterAll = "/proc/sys/net/ipv4/conf/all/rp_filter"
+
+// LooseRPFilter переводит rp_filter в режим loose (2) на время TUN.
+//
+// В Alpine по умолчанию rp_filter=1 (strict, /etc/sysctl.d/00-alpine.conf):
+// ответ сервера приходит на физический интерфейс, а обратный маршрут к
+// серверу ведёт в tun (0.0.0.0/1) — ядро такие пакеты молча отбрасывает,
+// и интернет в TUN не работает. Действует максимум из all и интерфейса,
+// поэтому достаточно поднять all до 2. Возвращает прежнее значение all.
+func LooseRPFilter(iface string) (prev string, changed bool, err error) {
+	return looseRPFilter("/proc/sys/net/ipv4/conf", iface)
+}
+
+func looseRPFilter(base, iface string) (string, bool, error) {
+	read := func(name string) int {
+		b, err := os.ReadFile(base + "/" + name + "/rp_filter")
+		if err != nil {
+			return 0
+		}
+		n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+		return n
+	}
+	all := read("all")
+	eff := max(all, read(iface))
+	if eff != 1 {
+		return "", false, nil // 0 или 2 — не мешает
+	}
+	if err := os.WriteFile(base+"/all/rp_filter", []byte("2\n"), 0o644); err != nil {
+		return "", false, fmt.Errorf("rp_filter=1 (strict) ломает TUN, а переключить его не удалось: %v — выполни `sysctl -w net.ipv4.conf.all.rp_filter=2`", err)
+	}
+	return strconv.Itoa(all), true, nil
+}
+
+// RestoreRPFilter возвращает прежнее значение rp_filter.
+func RestoreRPFilter(prev string) {
+	if prev != "" {
+		_ = os.WriteFile(rpFilterAll, []byte(prev+"\n"), 0o644)
+	}
 }
