@@ -1,0 +1,38 @@
+[
+  {
+    "remarks": "🇩🇪 Германия",
+    "dns": {"servers": ["1.1.1.1"]},
+    "inbounds": [{"tag": "socks", "port": 10808, "protocol": "socks"}],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {"vnext": [{"address": "de.example.com", "port": 443,
+          "users": [{"id": "11111111-2222-3333-4444-555555555555", "encryption": "none", "flow": "xtls-rprx-vision"}]}]},
+        "streamSettings": {"network": "tcp", "security": "reality",
+          "realitySettings": {"serverName": "www.google.com", "publicKey": "PBK_DE", "shortId": "abcd", "fingerprint": "chrome"},
+          "sockopt": {"dialerProxy": "fragment"}}
+      },
+      {"tag": "fragment", "protocol": "freedom", "settings": {"fragment": {"packets": "tlshello", "length": "100-200", "interval": "10-20"}}},
+      {"tag": "direct", "protocol": "freedom"},
+      {"tag": "block", "protocol": "blackhole"}
+    ],
+    "routing": {"rules": []}
+  },
+  {
+    "remarks": "🇫🇮 Финляндия",
+    "outbounds": [
+      {"tag": "proxy", "protocol": "trojan",
+        "settings": {"servers": [{"address": "fi.example.com", "port": 8443, "password": "trojanpw"}]},
+        "streamSettings": {"network": "ws", "security": "tls", "tlsSettings": {"serverName": "fi.example.com"}, "wsSettings": {"path": "/ws"}}},
+      {"tag": "direct", "protocol": "freedom"}
+    ]
+  },
+  {
+    "remarks": "Hy2",
+    "outbounds": [
+      {"tag": "proxy", "protocol": "hysteria", "settings": {"version": 2, "address": "hy.example.com", "port": 443},
+        "streamSettings": {"network": "hysteria", "security": "tls", "hysteriaSettings": {"version": 2, "auth": "pw"}}}
+    ]
+  }
+]

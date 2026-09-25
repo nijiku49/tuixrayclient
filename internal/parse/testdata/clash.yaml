@@ -1,0 +1,71 @@
+mixed-port: 7890
+allow-lan: false
+mode: rule
+proxies:
+  - name: "🇳🇱 Clash Reality"
+    type: vless
+    server: nl.example.com
+    port: 443
+    uuid: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    servername: www.apple.com
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: PBK_CLASH
+      short-id: "0a1b"
+  - name: VMess WS
+    type: vmess
+    server: vm.example.com
+    port: 443
+    uuid: vm-uuid
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: /vmws
+      headers:
+        Host: vm.example.com
+  - name: Trojan
+    type: trojan
+    server: tr.example.com
+    port: 443
+    password: trpass
+    sni: tr.example.com
+    skip-cert-verify: true
+  - name: SS
+    type: ss
+    server: ss.example.com
+    port: 8388
+    cipher: aes-256-gcm
+    password: sspass
+  - name: Hy2
+    type: hysteria2
+    server: hy.example.com
+    port: 443
+    password: hypass
+    obfs: salamander
+    obfs-password: ob
+    sni: hy.example.com
+  - name: VLESS gRPC
+    type: vless
+    server: g.example.com
+    port: 443
+    uuid: g-uuid
+    network: grpc
+    tls: true
+    grpc-opts:
+      grpc-service-name: gsvc
+  - name: HTTP proxy
+    type: http
+    server: h.example.com
+    port: 8080
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies: ["🇳🇱 Clash Reality", "VMess WS"]
+rules:
+  - MATCH,PROXY

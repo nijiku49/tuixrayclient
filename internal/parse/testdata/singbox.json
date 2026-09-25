@@ -1,0 +1,27 @@
+{
+  "log": {"level": "warn"},
+  "outbounds": [
+    {"type": "selector", "tag": "select", "outbounds": ["NL Reality", "US WS"]},
+    {"type": "vless", "tag": "NL Reality", "server": "nl.example.com", "server_port": 443,
+      "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "flow": "xtls-rprx-vision",
+      "tls": {"enabled": true, "server_name": "www.apple.com",
+        "utls": {"enabled": true, "fingerprint": "chrome"},
+        "reality": {"enabled": true, "public_key": "PBK_NL", "short_id": "0123"}}},
+    {"type": "vmess", "tag": "US WS", "server": "us.example.com", "server_port": 443,
+      "uuid": "vmess-uuid", "security": "auto", "alter_id": 0,
+      "tls": {"enabled": true, "server_name": "us.example.com", "alpn": ["http/1.1"]},
+      "transport": {"type": "ws", "path": "/vm", "headers": {"Host": "us.example.com"}}},
+    {"type": "trojan", "tag": "Trojan gRPC", "server": "t.example.com", "server_port": 443, "password": "tp",
+      "tls": {"enabled": true, "server_name": "t.example.com"},
+      "transport": {"type": "grpc", "service_name": "tgrpc"}},
+    {"type": "shadowsocks", "tag": "SS2022", "server": "ss.example.com", "server_port": 8388,
+      "method": "2022-blake3-aes-128-gcm", "password": "c3VwZXJzZWNyZXRrZXkxMg=="},
+    {"type": "hysteria2", "tag": "Hy2 SB", "server": "hy.example.com", "server_port": 443, "password": "hpw",
+      "server_ports": ["20000:30000"], "up_mbps": 20, "down_mbps": 100,
+      "obfs": {"type": "salamander", "password": "obfspw"},
+      "tls": {"enabled": true, "server_name": "hy.example.com", "insecure": true}},
+    {"type": "direct", "tag": "direct"},
+    {"type": "block", "tag": "block"},
+    {"type": "dns", "tag": "dns-out"}
+  ]
+}
