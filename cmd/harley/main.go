@@ -38,6 +38,10 @@ const usage = `harley — VPN-клиент на xray-core (аналог Happ в 
   harley mode proxy|tun         режим подключения
   harley routing all|ru|custom  маршрутизация: всё через VPN / RU напрямую / свои правила
   harley logs [-n 50]           последние строки лога xray
+  harley install-xray           скачать/обновить xray-core (официальный релиз, проверка SHA-256)
+        --version v26.3.27      конкретная версия (по умолчанию последняя)
+        --from Xray-linux-64.zip  установить из скачанного архива (рядом нужен .dgst)
+        --mirror URL            зеркало релизов вместо github.com/XTLS/Xray-core/releases
   harley version                версия
 
 Данные: ~/.config/harley/ (от root — /etc/harley/), переопределяется $HARLEY_HOME.
@@ -74,6 +78,8 @@ func main() {
 		err = cmdRouting(args)
 	case "logs", "log":
 		err = cmdLogs(args)
+	case "install-xray":
+		err = cmdInstallXray(ctx, args)
 	case "tui":
 		runTUI()
 	case "version", "--version", "-v":
@@ -150,6 +156,7 @@ func cmdAdd(ctx context.Context, args []string) error {
 	if *noConnect || !settings.AutoConnect || len(rep.ServerIDs) == 0 {
 		return nil
 	}
+	noticeInstall(a)
 	fmt.Printf("Пингую %d серверов и подключаюсь к самому быстрому…\n", len(rep.ServerIDs))
 	sess, best, err := a.AutoConnect(ctx, rep.ServerIDs)
 	if err != nil {
@@ -186,6 +193,7 @@ func cmdConnect(ctx context.Context, args []string) error {
 		}
 		id = s.ID
 	}
+	noticeInstall(a)
 	sess, err := a.Connect(ctx, id)
 	if err != nil {
 		return err
@@ -269,6 +277,7 @@ func cmdUpdate(ctx context.Context, args []string) error {
 
 func cmdPing(ctx context.Context) error {
 	a := openApp()
+	noticeInstall(a)
 	rep, err := a.Ping(ctx, nil)
 	if err != nil {
 		return err
@@ -399,6 +408,50 @@ func cmdLogs(args []string) error {
 	a := openApp()
 	for _, l := range xray.TailFile(a.Store.LogPath(), *n) {
 		fmt.Println(l)
+	}
+	return nil
+}
+
+func noticeInstall(a *app.App) {
+	if a.WillInstallXray() {
+		fmt.Println("xray не найден — скачиваю официальный релиз xray-core…")
+	}
+}
+
+func cmdInstallXray(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("install-xray", flag.ExitOnError)
+	ver := fs.String("version", "latest", "версия (тег релиза)")
+	from := fs.String("from", "", "локальный zip-архив релиза")
+	mirror := fs.String("mirror", "", "зеркало релизов")
+	noVerify := fs.Bool("no-verify", false, "не проверять SHA-256 (только с --from)")
+	_ = fs.Parse(args)
+	a := openApp()
+	s, err := a.Settings()
+	if err != nil {
+		return err
+	}
+	if *mirror == "" {
+		*mirror = s.XrayReleases
+	}
+	if *noVerify && *from == "" {
+		return fmt.Errorf("--no-verify допустим только с --from")
+	}
+	lay := xray.DefaultLayout()
+	if *from == "" {
+		fmt.Printf("Скачиваю xray-core (%s) в %s…\n", *ver, lay.BinDir)
+	}
+	res, err := xray.Install(ctx, xray.InstallOptions{
+		Version: *ver, Releases: *mirror, FromFile: *from, NoVerify: *noVerify, Layout: lay,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✓ %s\n  бинарник: %s\n  geo-файлы: %s\n  sha256: %s\n", res.Version, res.Bin, res.AssetDir, res.SHA256)
+	if s.XrayPath != "" && s.XrayPath != res.Bin {
+		fmt.Printf("  внимание: в config.json задан xray_path=%s — harley будет использовать его\n", s.XrayPath)
+	}
+	if os.Geteuid() != 0 {
+		fmt.Println("  (установлено для текущего пользователя; для режима TUN и OpenRC запусти `sudo harley install-xray`)")
 	}
 	return nil
 }

@@ -46,7 +46,11 @@ type CustomRules struct {
 // Settings — config.json.
 type Settings struct {
 	XrayPath string `json:"xray_path"` // пусто — искать в PATH
-	AssetDir string `json:"asset_dir"` // geoip.dat/geosite.dat; пусто — стандартные места
+	// AutoInstallXray — если xray нет, скачать официальный релиз (в Alpine
+	// его нет в репозиториях).
+	AutoInstallXray bool   `json:"auto_install_xray"`
+	XrayReleases    string `json:"xray_releases"` // зеркало релизов; пусто — GitHub
+	AssetDir        string `json:"asset_dir"`     // geoip.dat/geosite.dat; пусто — стандартные места
 
 	Mode       string `json:"mode"` // proxy | tun
 	ListenAddr string `json:"listen"`
@@ -73,6 +77,7 @@ type Settings struct {
 // Defaults — настройки по умолчанию.
 func Defaults() Settings {
 	return Settings{
+		AutoInstallXray: true,
 		Mode:            ModeProxy,
 		ListenAddr:      "127.0.0.1",
 		SocksPort:       10808,

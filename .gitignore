@@ -1,3 +1,5 @@
 /dist/
 /harley
 *.test
+/xray
+/.xray-build/

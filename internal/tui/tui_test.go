@@ -117,7 +117,7 @@ func TestPasteInNormalModeAndErrors(t *testing.T) {
 	m.cursor = 1
 	_, cmd = m.Update(key("enter"))
 	run(m, cmd)
-	if m.msgKind != kErr || !strings.Contains(m.msg, "apk add xray") {
+	if m.msgKind != kErr || !strings.Contains(m.msg, "install-xray") {
 		t.Fatalf("нет xray: %q", m.msg)
 	}
 }

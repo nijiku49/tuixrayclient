@@ -1,7 +1,10 @@
 package app
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -218,7 +221,7 @@ func TestConnectErrors(t *testing.T) {
 		t.Fatalf("пустой список: %v", err)
 	}
 	a.Import(context.Background(), k1)
-	if _, err := a.Connect(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "apk add xray") {
+	if _, err := a.Connect(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "install-xray") {
 		t.Fatalf("нет xray: %v", err)
 	}
 	if st := a.GetStatus(); st.Connected || st.Session != nil {
@@ -303,5 +306,63 @@ func TestAutoConnectIntegration(t *testing.T) {
 	}
 	if a.GetStatus().Connected {
 		t.Fatal("не отключились")
+	}
+}
+
+func TestEnsureXrayDownloads(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	h := &zip.FileHeader{Name: "xray", Method: zip.Deflate}
+	h.SetMode(0o755)
+	w, _ := zw.CreateHeader(h)
+	w.Write([]byte("#!/bin/sh\necho 'Xray 26.9.9 test'\n"))
+	zw.Close()
+	archive := buf.Bytes()
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if strings.HasSuffix(r.URL.Path, ".dgst") {
+			fmt.Fprintf(w, "SHA2-256= %x\n", sha256.Sum256(archive))
+			return
+		}
+		w.Write(archive)
+	}))
+	defer srv.Close()
+
+	a, _ := NewAt(t.TempDir())
+	s, _ := a.Settings()
+	s.XrayReleases = srv.URL
+	a.SaveSettings(s)
+	for _, p := range []string{"/usr/local/bin/xray", "/usr/bin/xray"} {
+		if _, err := os.Stat(p); err == nil {
+			t.Skip("в системе уже есть xray: " + p)
+		}
+	}
+	dir := t.TempDir()
+	a.XrayLayout = xray.InstallLayout{BinDir: dir, AssetDir: dir}
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	if !a.WillInstallXray() {
+		t.Fatal("xray нет — должен скачаться")
+	}
+	bin, err := a.EnsureXray(context.Background(), s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bin != filepath.Join(dir, "xray") || a.WillInstallXray() {
+		t.Fatalf("установлен в %s", bin)
+	}
+	// Повторно не качаем.
+	hits = 0
+	s, _ = a.Settings()
+	if b2, err := a.EnsureXray(context.Background(), s); err != nil || b2 != bin || hits != 0 {
+		t.Fatalf("повторная загрузка: %v %s %d", err, b2, hits)
+	}
+	// Выключенная автоустановка — понятная ошибка без скачивания.
+	s = store.Defaults()
+	s.AutoInstallXray = false
+	os.Remove(bin)
+	if _, err := a.EnsureXray(context.Background(), s); err == nil || !strings.Contains(err.Error(), "install-xray") || hits != 0 {
+		t.Fatalf("%v, запросов %d", err, hits)
 	}
 }

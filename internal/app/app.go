@@ -27,6 +27,8 @@ type App struct {
 	// HTTPClient — для загрузки подписок (тесты подменяют).
 	HTTPClient *http.Client
 	Now        func() time.Time
+	// XrayLayout — куда ставить xray; пусто — xray.DefaultLayout().
+	XrayLayout xray.InstallLayout
 }
 
 // New открывает стандартное хранилище.
@@ -368,7 +370,7 @@ func (a *App) Ping(ctx context.Context, ids []string) (PingReport, error) {
 	}
 	timeout := time.Duration(settings.PingTimeout) * time.Second
 	var rep PingReport
-	bin, binErr := xray.FindBinary(settings.XrayPath)
+	bin, binErr := a.EnsureXray(ctx, settings)
 	if binErr != nil {
 		rep.TCPOnly = true
 		rep.Results = xray.TCPPing(ctx, servers, timeout)
@@ -450,6 +452,37 @@ func FindServer(st *store.State, query string) (*model.Server, error) {
 	return nil, fmt.Errorf("под %q подходит несколько серверов: %s", q, strings.Join(names, ", "))
 }
 
+// EnsureXray находит xray, а если его нет и разрешено — скачивает
+// официальный релиз (сценарий «вставил — работает» на чистом Alpine).
+func (a *App) EnsureXray(ctx context.Context, settings store.Settings) (string, error) {
+	bin, err := xray.FindBinary(settings.XrayPath)
+	if err == nil || settings.XrayPath != "" || !settings.AutoInstallXray {
+		return bin, err
+	}
+	res, ierr := xray.Install(ctx, xray.InstallOptions{Releases: settings.XrayReleases, Layout: a.XrayLayout})
+	if ierr != nil {
+		return "", fmt.Errorf("xray не найден, автоустановка не удалась: %w", ierr)
+	}
+	// Если поставили туда, где FindBinary не ищет, — запоминаем путь.
+	if found, err := xray.FindBinary(""); err != nil || found != res.Bin {
+		if cur, err := a.Store.LoadSettings(); err == nil {
+			cur.XrayPath = res.Bin
+			_ = a.Store.SaveSettings(cur)
+		}
+	}
+	return res.Bin, nil
+}
+
+// WillInstallXray — xray нет и он будет скачан при подключении/пинге.
+func (a *App) WillInstallXray() bool {
+	s, err := a.Store.LoadSettings()
+	if err != nil || s.XrayPath != "" || !s.AutoInstallXray {
+		return false
+	}
+	_, err = xray.FindBinary("")
+	return err != nil
+}
+
 // Session — активное подключение (session.json).
 type Session struct {
 	ServerID    string    `json:"server_id"`
@@ -526,7 +559,7 @@ func (a *App) Connect(ctx context.Context, serverID string) (*Session, error) {
 		}
 	}
 
-	bin, err := xray.FindBinary(settings.XrayPath)
+	bin, err := a.EnsureXray(ctx, settings)
 	if err != nil {
 		return nil, err
 	}

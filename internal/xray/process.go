@@ -16,7 +16,7 @@ import (
 )
 
 // ErrNoXray — xray не установлен.
-var ErrNoXray = errors.New("xray не найден: установи его командой `apk add xray` или укажи путь в xray_path (config.json)")
+var ErrNoXray = errors.New("xray не найден: выполни `harley install-xray` (скачает официальный релиз) или укажи путь в xray_path (config.json)")
 
 // FindBinary ищет xray: путь из настроек, затем PATH и стандартные места.
 func FindBinary(configured string) (string, error) {
@@ -24,12 +24,16 @@ func FindBinary(configured string) (string, error) {
 		if isExec(configured) {
 			return configured, nil
 		}
-		return "", fmt.Errorf("xray не найден по пути %s (xray_path в config.json); установи `apk add xray`", configured)
+		return "", fmt.Errorf("xray не найден по пути %s (xray_path в config.json); установи его: `harley install-xray`", configured)
 	}
 	if p, err := exec.LookPath("xray"); err == nil {
 		return p, nil
 	}
-	for _, p := range []string{"/usr/bin/xray", "/usr/local/bin/xray", "/usr/sbin/xray", "/usr/share/xray/xray", "/opt/xray/xray"} {
+	cands := []string{"/usr/local/bin/xray", "/usr/bin/xray", "/usr/sbin/xray", "/usr/local/share/xray/xray", "/usr/share/xray/xray", "/opt/xray/xray"}
+	if d := userXrayDir(); d != "" {
+		cands = append([]string{filepath.Join(d, "xray")}, cands...)
+	}
+	for _, p := range cands {
 		if isExec(p) {
 			return p, nil
 		}

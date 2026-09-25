@@ -50,11 +50,11 @@ TUI VPN-клиент для Alpine Linux — аналог Happ, только в 
 ## Установка на Alpine
 
 ```sh
-# 1. xray-core
-apk add xray
-
-# 2. harley (из релиза или собранный: make release)
+# 1. harley (из релиза или собранный: make release)
 install -m 0755 harley-linux-amd64 /usr/local/bin/harley     # arm64: harley-linux-arm64
+
+# 2. xray-core — в репозиториях Alpine его нет, harley ставит официальный релиз сам
+harley install-xray
 
 # 3. Для режима TUN — модуль tun (и чтобы грузился при старте)
 modprobe tun
@@ -67,7 +67,42 @@ rc-update add harley default
 ```
 
 Или одной командой из каталога релиза: `sudo sh install.sh ./harley-linux-amd64`
-(ставит бинарник, xray, модуль tun и OpenRC-скрипт; POSIX sh, работает в busybox ash).
+(ставит harley, xray, модуль tun и OpenRC-скрипт; POSIX sh, работает в busybox ash).
+
+### xray-core
+
+xray-core в репозиториях Alpine нет, поэтому harley ставит его сам. Шаг 2 можно
+пропустить: если xray не найден, harley скачает его при первом подключении или
+пинге. Отключается в настройках: «Автоустановка xray» или `"auto_install_xray": false`.
+
+`harley install-xray` скачивает с GitHub официальный релиз
+`Xray-linux-64.zip` (arm64: `Xray-linux-arm64-v8a.zip`). Это статический
+Go-бинарник, на musl он работает. harley проверяет SHA-256 по файлу `.dgst`
+из того же релиза и распаковывает `xray`, `geoip.dat` и `geosite.dat`:
+
+| Запуск | xray | geo-файлы |
+|---|---|---|
+| от root | `/usr/local/bin/xray` | `/usr/local/share/xray/` |
+| от пользователя | `~/.local/share/harley/xray/xray` | там же |
+
+Для режима TUN и службы OpenRC ставь от root: `sudo harley install-xray`.
+Той же командой xray обновляется. Работающее подключение при этом не рвётся,
+новая версия заработает со следующего подключения.
+
+Если GitHub недоступен:
+
+```sh
+# скачай на другой машине Xray-linux-64.zip и Xray-linux-64.zip.dgst, затем
+harley install-xray --from ./Xray-linux-64.zip          # сумма проверяется по .dgst рядом
+harley install-xray --mirror https://mirror.example/xray/releases   # своё зеркало с той же структурой
+harley install-xray --version v26.3.27                  # конкретная версия
+
+# или собрать из исходников через Go-прокси (нужен Go 1.26+, скачается автоматически)
+make xray XRAY_VERSION=v1.260327.0 && install -m 0755 xray /usr/local/bin/xray
+```
+
+Свой бинарник xray тоже подойдёт: положи его в `PATH` или укажи `xray_path`
+в `config.json`.
 
 ### Сборка из исходников
 
@@ -81,12 +116,12 @@ make release        # dist/harley-linux-amd64, dist/harley-linux-arm64, SHA256SU
 
 ### Geo-файлы (для «RU напрямую»)
 
-Пресет «RU напрямую» использует `geoip.dat` и `geosite.dat`. harley ищет их в
-`asset_dir` из настроек, `$XRAY_LOCATION_ASSET`, рядом с бинарником xray,
-в `/usr/share/xray`, `/usr/local/share/xray`, `/usr/share/v2ray`.
-Если их нет, скачай, например, из
-[Loyalsoldier/v2ray-rules-dat](https://github.com/Loyalsoldier/v2ray-rules-dat/releases)
-в `/usr/share/xray/`. Для «всё через VPN» они не нужны.
+Пресет «RU напрямую» использует `geoip.dat` и `geosite.dat`. `harley install-xray`
+ставит их вместе с xray. harley ищет их в `asset_dir` из настроек,
+`$XRAY_LOCATION_ASSET`, рядом с бинарником xray, в `/usr/local/share/xray`,
+`/usr/share/xray` и `/usr/share/v2ray`. Более полные списки есть, например, в
+[Loyalsoldier/v2ray-rules-dat](https://github.com/Loyalsoldier/v2ray-rules-dat/releases).
+Для «всё через VPN» geo-файлы не нужны.
 
 ## Быстрый старт
 
@@ -147,6 +182,7 @@ harley update --due                                       # только про�
 harley mode tun | proxy
 harley routing all | ru | custom
 harley logs -n 100
+harley install-xray                                       # скачать/обновить xray-core
 harley disconnect
 ```
 
@@ -164,7 +200,9 @@ harley disconnect
 
 ```json
 {
-  "xray_path": "",                     // пусто — искать xray в PATH
+  "xray_path": "",                     // пусто — искать xray в PATH и в месте установки harley
+  "auto_install_xray": true,           // нет xray — скачать официальный релиз
+  "xray_releases": "",                 // зеркало релизов; пусто — github.com/XTLS/Xray-core/releases
   "asset_dir": "",                     // каталог geoip.dat/geosite.dat
   "mode": "proxy",                     // proxy | tun
   "listen": "127.0.0.1",
@@ -217,7 +255,7 @@ harley disconnect
 
 | Ситуация | Что покажет harley |
 |---|---|
-| xray не установлен | «xray не найден: установи его командой `apk add xray`…» |
+| xray не установлен | скачает его сам; если нельзя — «xray не найден: выполни `harley install-xray`…» |
 | TUN без прав | «режим TUN требует root или CAP_NET_ADMIN: запусти `sudo harley`…» |
 | нет /dev/net/tun | «выполни `modprobe tun` и добавь tun в /etc/modules» |
 | порт занят | «порт 10808 уже занят другой программой — смени его в настройках…» |

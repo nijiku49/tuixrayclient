@@ -10,7 +10,7 @@ ARCHES  := amd64 arm64
 
 export CGO_ENABLED := 0
 
-.PHONY: all build test test-xray vet release install clean
+.PHONY: all build test test-xray vet release install xray clean
 
 all: build
 
@@ -44,5 +44,12 @@ release: clean
 install: build
 	sh scripts/install.sh ./$(BINARY)
 
+## xray: собрать xray-core из исходников (если GitHub-релизы недоступны, а Go-прокси есть)
+XRAY_VERSION ?= latest
+xray:
+	GOBIN=$(CURDIR)/.xray-build $(GO) install -trimpath -ldflags '-s -w' github.com/xtls/xray-core/main@$(XRAY_VERSION)
+	mv .xray-build/main ./xray && rmdir .xray-build
+	@echo "готово: ./xray — установи: install -m 0755 xray /usr/local/bin/xray"
+
 clean:
-	rm -rf $(DIST) $(BINARY)
+	rm -rf $(DIST) $(BINARY) xray .xray-build

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Установка harley на Alpine Linux. Только POSIX sh (busybox ash).
 # Запуск из каталога с бинарником:  sudo sh install.sh [путь/к/harley]
+# Без доступа к GitHub: XRAY_ZIP=/путь/Xray-linux-64.zip sudo sh install.sh
 set -eu
 
 BIN_SRC="${1:-./harley}"
@@ -16,13 +17,16 @@ die() { printf 'ошибка: %s\n' "$*" >&2; exit 1; }
 say "→ harley → $PREFIX/bin/harley"
 install -D -m 0755 "$BIN_SRC" "$PREFIX/bin/harley"
 
-if ! command -v xray >/dev/null 2>&1; then
-	if command -v apk >/dev/null 2>&1; then
-		say "→ xray не найден, ставлю: apk add xray"
-		apk add xray || say "  не удалось установить xray — поставь вручную"
-	else
-		say "! xray не найден — установи xray-core"
-	fi
+# xray-core: в репозиториях Alpine его нет — ставим официальный релиз
+# (статический бинарник) через harley с проверкой SHA-256.
+if command -v xray >/dev/null 2>&1; then
+	say "→ xray уже установлен: $(xray version 2>/dev/null | head -n 1)"
+elif [ -n "${XRAY_ZIP:-}" ]; then
+	say "→ xray из архива $XRAY_ZIP"
+	"$PREFIX/bin/harley" install-xray --from "$XRAY_ZIP" || die "не удалось установить xray из $XRAY_ZIP"
+else
+	say "→ скачиваю xray-core с GitHub (официальный релиз)"
+	"$PREFIX/bin/harley" install-xray || say "  не удалось — скачай Xray-linux-*.zip и .dgst вручную и запусти: XRAY_ZIP=путь sh $0"
 fi
 
 if [ ! -c /dev/net/tun ]; then

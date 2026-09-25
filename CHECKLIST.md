@@ -10,8 +10,12 @@ xray-сервер, а режим TUN проверен в изолированн�
 
 ## 0. Подготовка (Alpine)
 
-- [ ] `apk add xray` — `xray version` показывает версию (желательно 26.x; для Hy2 и TUN нужна свежая)
 - [ ] Скопировал `harley-linux-amd64` (или arm64) в `/usr/local/bin/harley`, `harley version` запускается без ошибок (бинарник статический)
+- [ ] `sudo harley install-xray` — скачал релиз с GitHub, вывел версию, `/usr/local/bin/xray version` работает на Alpine (musl), в `/usr/local/share/xray/` есть geoip.dat и geosite.dat
+- [ ] Без root: `harley install-xray` ставит в `~/.local/share/harley/xray/`
+- [ ] Автоустановка: удали xray (`rm /usr/local/bin/xray`), вставь ссылку в чистом TUI — в шапке «Скачиваю xray-core…», затем подключение
+- [ ] Без доступа к GitHub: скачай `Xray-linux-64.zip` и `.dgst` на другой машине → `harley install-xray --from Xray-linux-64.zip`
+- [ ] `sudo sh install.sh ./harley-linux-amd64` на чистом Alpine — ставит harley, xray и OpenRC-скрипт
 - [ ] `modprobe tun`, `ls -l /dev/net/tun` — устройство есть
 
 ## 1. Первый запуск и вставка

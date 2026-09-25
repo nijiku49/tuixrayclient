@@ -306,6 +306,7 @@ func (m *Model) importCmd(text string) tea.Cmd {
 func (m *Model) pingCmd(ids []string) tea.Cmd {
 	m.markPinging(ids)
 	m.busy = "Пингую серверы (URL-тест)…"
+	m.installHint()
 	a, ctx := m.app, m.ctx
 	return func() tea.Msg {
 		rep, err := a.Ping(ctx, ids)
@@ -332,6 +333,7 @@ func (m *Model) connectCmd(id string) tea.Cmd {
 		name = s.Name
 	}
 	m.busy = "Подключаюсь к " + name + "…"
+	m.installHint()
 	a, ctx := m.app, m.ctx
 	return func() tea.Msg {
 		sess, err := a.Connect(ctx, id)
@@ -346,10 +348,32 @@ func (m *Model) connectCmd(id string) tea.Cmd {
 func (m *Model) autoConnectCmd(ids []string) tea.Cmd {
 	m.markPinging(ids)
 	m.busy = "Пингую и выбираю самый быстрый сервер…"
+	m.installHint()
 	a, ctx := m.app, m.ctx
 	return func() tea.Msg {
 		sess, srv, err := a.AutoConnect(ctx, ids)
 		return connectMsg{sess: sess, srv: srv, err: err, auto: true}
+	}
+}
+
+// installHint — если xray нет, его сейчас скачают: говорим об этом.
+func (m *Model) installHint() {
+	if m.app.WillInstallXray() {
+		m.busy = "Скачиваю xray-core (первый запуск)… " + m.busy
+	}
+}
+
+type installMsg struct {
+	res *xray.InstallResult
+	err error
+}
+
+func (m *Model) installCmd() tea.Cmd {
+	m.busy = "Скачиваю xray-core…"
+	ctx, rel := m.ctx, m.settings.XrayReleases
+	return func() tea.Msg {
+		res, err := xray.Install(ctx, xray.InstallOptions{Releases: rel})
+		return installMsg{res, err}
 	}
 }
 
@@ -515,6 +539,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setMsg(kOK, txt)
 		m.focusServer([]string{msg.sess.ServerID})
 		return m, m.statusCmd()
+
+	case installMsg:
+		m.busy = ""
+		if msg.err != nil {
+			m.setMsg(kErr, msg.err.Error())
+			return m, nil
+		}
+		if m.settings.XrayPath != "" && m.settings.XrayPath != msg.res.Bin {
+			m.settings.XrayPath = msg.res.Bin
+			_ = m.app.SaveSettings(m.settings)
+		}
+		m.setMsg(kOK, "✓ "+msg.res.Version+" → "+msg.res.Bin)
+		return m, nil
 
 	case disconnectMsg:
 		m.busy = ""
@@ -887,6 +924,8 @@ var settingsList = []setting{
 	{"ua", "User-Agent подписок", func(s store.Settings) string { return s.UserAgent }, "text"},
 	{"hwid", "Отправлять HWID", func(s store.Settings) string { return onOff(s.SendHWID) }, "toggle"},
 	{"pingurl", "URL для пинга", func(s store.Settings) string { return s.PingURL }, "text"},
+	{"autoxray", "Автоустановка xray", func(s store.Settings) string { return onOff(s.AutoInstallXray) }, "toggle"},
+	{"installxray", "Скачать/обновить xray", func(s store.Settings) string { return "Enter — официальный релиз с GitHub" }, "action"},
 	{"xray", "Путь к xray", func(s store.Settings) string {
 		if s.XrayPath == "" {
 			return "авто (PATH)"
@@ -934,12 +973,20 @@ func (m *Model) keySettings(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.settings.AutoConnect = !m.settings.AutoConnect
 			case "hwid":
 				m.settings.SendHWID = !m.settings.SendHWID
+			case "autoxray":
+				m.settings.AutoInstallXray = !m.settings.AutoInstallXray
 			}
 			if err := m.app.SaveSettings(m.settings); err != nil {
 				m.setMsg(kErr, err.Error())
 			} else {
 				m.setMsg(kInfo, it.label+": "+it.value(m.settings))
 			}
+		case "action":
+			if m.busyGuard() {
+				return m, nil
+			}
+			m.mode = mNormal
+			return m, m.installCmd()
 		default:
 			m.mode = mEdit
 			m.editKey = it.key
