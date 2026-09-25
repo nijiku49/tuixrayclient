@@ -112,6 +112,7 @@ make build          # ./harley для текущей платформы
 make test           # юнит-тесты
 make test-xray      # + проверка конфигов и сквозные тесты с настоящим xray
 make release        # dist/harley-linux-amd64, dist/harley-linux-arm64, SHA256SUMS
+make build && doas make install   # собрать от себя, установить от root
 ```
 
 ### Geo-файлы (для «RU напрямую»)
