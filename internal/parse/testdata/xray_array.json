@@ -10,7 +10,7 @@
         "settings": {"vnext": [{"address": "de.example.com", "port": 443,
           "users": [{"id": "11111111-2222-3333-4444-555555555555", "encryption": "none", "flow": "xtls-rprx-vision"}]}]},
         "streamSettings": {"network": "tcp", "security": "reality",
-          "realitySettings": {"serverName": "www.google.com", "publicKey": "PBK_DE", "shortId": "abcd", "fingerprint": "chrome"},
+          "realitySettings": {"serverName": "www.google.com", "publicKey": "Z84J2IelR9ch3k8VtlVhhs5ycBUlXA7wHBWcBrjqnAw", "shortId": "abcd", "fingerprint": "chrome"},
           "sockopt": {"dialerProxy": "fragment"}}
       },
       {"tag": "fragment", "protocol": "freedom", "settings": {"fragment": {"packets": "tlshello", "length": "100-200", "interval": "10-20"}}},

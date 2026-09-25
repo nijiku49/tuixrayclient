@@ -79,7 +79,7 @@ func TestParseBodyXrayArray(t *testing.T) {
 	}
 	de := r.Servers[0]
 	checkFields(t, de, &model.Server{Name: "🇩🇪 Германия", Protocol: "vless", Address: "de.example.com", Port: 443,
-		Security: "reality", PublicKey: "PBK_DE", SNI: "www.google.com", Flow: "xtls-rprx-vision"})
+		Security: "reality", PublicKey: "Z84J2IelR9ch3k8VtlVhhs5ycBUlXA7wHBWcBrjqnAw", SNI: "www.google.com", Flow: "xtls-rprx-vision"})
 	if len(de.Raw) == 0 {
 		t.Fatal("Raw outbound не сохранён")
 	}

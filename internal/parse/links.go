@@ -143,6 +143,7 @@ func applyStreamQuery(s *model.Server, q url.Values) error {
 	s.ALPN = splitList(first(q, "alpn"))
 	s.AllowInsecure = truthy(first(q, "allowInsecure", "insecure", "allow_insecure"))
 	s.PinSHA256 = first(q, "pcs", "pinSHA256")
+	s.VerifyName = first(q, "vcn")
 	s.PublicKey = first(q, "pbk", "publicKey")
 	s.ShortID = first(q, "sid", "shortId")
 	s.SpiderX = first(q, "spx", "spiderX")

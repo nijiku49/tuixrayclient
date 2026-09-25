@@ -57,6 +57,7 @@ type Server struct {
 	ALPN          []string `json:"alpn,omitempty"`
 	AllowInsecure bool     `json:"insecure,omitempty"`
 	PinSHA256     string   `json:"pin_sha256,omitempty"`
+	VerifyName    string   `json:"vcn,omitempty"` // verifyPeerCertByName
 	PublicKey     string   `json:"pbk,omitempty"`
 	ShortID       string   `json:"sid,omitempty"`
 	SpiderX       string   `json:"spx,omitempty"`
